@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q2 Budget Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Design tokens ────────────────────────────────────────────────── */
+:root {
+  --grad-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --grad-green:   linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  --grad-orange:  linear-gradient(135deg, #F2994A 0%, #F2C94C 100%);
+  --grad-pink:    linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+  --surface:      rgba(255,255,255,0.92);
+  --border:       #e5e7eb;
+  --text-dark:    #1f2937;
+  --text-mid:     #6B7280;
+  --radius-lg:    16px;
+  --radius-xl:    24px;
+  --shadow-card:  0 8px 32px rgba(31,38,135,0.10);
+  --shadow-hero:  0 20px 60px rgba(102,126,234,0.35);
+  --font:         'Inter', sans-serif;
+}
+
+/* ── Reset & base ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: #f3f4f8; color: var(--text-dark); min-height: 100vh; }
+a { text-decoration: none; }
+button { font-family: var(--font); cursor: pointer; }
+
+/* ── Layout ───────────────────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2rem; height: 60px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.topbar-brand {
+  font-size: 1.1rem; font-weight: 700;
+  background: var(--grad-primary);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nav { display: flex; gap: 0.25rem; }
+.nav-btn {
+  background: none; border: none; padding: 0.45rem 1rem;
+  border-radius: 8px; font-size: 0.9rem; font-weight: 500;
+  color: var(--text-mid); transition: all 0.15s;
+}
+.nav-btn:hover  { background: #f0f0f5; color: var(--text-dark); }
+.nav-btn.active { background: var(--grad-primary); color: #fff; }
+.topbar-actions { display: flex; gap: 0.5rem; align-items: center; }
+.fb-btn {
+  padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.85rem;
+  font-weight: 500; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-mid);
+  transition: all 0.15s;
+}
+.fb-btn:hover { border-color: #667eea; color: #667eea; }
+
+.main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+/* ── Hero ─────────────────────────────────────────────────────────── */
+.hero {
+  background: var(--grad-primary); border-radius: var(--radius-xl);
+  padding: 2.5rem 3rem; color: white; margin-bottom: 2rem;
+  box-shadow: var(--shadow-hero);
+}
+.hero-title { font-size: 2.4rem; font-weight: 800; margin-bottom: 0.4rem; }
+.hero-sub   { font-size: 1.05rem; opacity: 0.88; max-width: 580px; }
+
+/* ── Metric cards ─────────────────────────────────────────────────── */
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-bottom: 1.75rem; }
+.metric-card {
+  border-radius: var(--radius-lg); padding: 1.4rem 1.5rem;
+  color: white; min-height: 130px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.mc-purple { background: var(--grad-primary); box-shadow: 0 10px 40px rgba(102,126,234,0.28); }
+.mc-green  { background: var(--grad-green);   box-shadow: 0 10px 40px rgba(17,153,142,0.28); }
+.mc-orange { background: var(--grad-orange);  box-shadow: 0 10px 40px rgba(242,153,74,0.28); }
+.mc-pink   { background: var(--grad-pink);    box-shadow: 0 10px 40px rgba(238,9,121,0.28); }
+.mc-label  { font-size: 0.82rem; opacity: 0.88; font-weight: 500; }
+.mc-value  { font-size: 2rem; font-weight: 700; line-height: 1.1; margin: 0.35rem 0; }
+.mc-delta  { font-size: 0.78rem; opacity: 0.80; min-height: 1.1em; }
+
+/* ── Glass card ───────────────────────────────────────────────────── */
+.glass {
+  background: var(--surface); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 1.5rem; box-shadow: var(--shadow-card); margin-bottom: 1.25rem;
+}
+.glass h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-dark); }
+
+/* ── Two-col grid ─────────────────────────────────────────────────── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+
+/* ── Callout boxes ────────────────────────────────────────────────── */
+.insight-box {
+  background: linear-gradient(135deg,rgba(102,126,234,0.08),rgba(118,75,162,0.08));
+  border-left: 4px solid #667eea; padding: 14px 16px; border-radius: 8px; margin: 12px 0;
+  font-size: 0.9rem; line-height: 1.55;
+}
+.action-box  {
+  background: linear-gradient(135deg,rgba(17,153,142,0.08),rgba(56,239,125,0.08));
+  border-left: 4px solid #11998e; padding: 14px 16px; border-radius: 8px; margin: 12px 0;
+  font-size: 0.9rem; line-height: 1.55;
+}
+.warning-box {
+  background: linear-gradient(135deg,rgba(242,153,74,0.08),rgba(242,201,76,0.08));
+  border-left: 4px solid #F2994A; padding: 14px 16px; border-radius: 8px; margin: 12px 0;
+  font-size: 0.9rem; line-height: 1.55;
+}
+
+/* ── Table ────────────────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.data-table th {
+  background: var(--grad-primary); color: white;
+  padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.82rem;
+}
+.data-table th:first-child { border-radius: 8px 0 0 8px; }
+.data-table th:last-child  { border-radius: 0 8px 8px 0; }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f5; }
+.data-table tr:hover td { background: #fafbff; }
+.roas-pill {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-weight: 600; font-size: 0.82rem;
+}
+.roas-good   { background: #d1fae5; color: #065f46; }
+.roas-ok     { background: #fef3c7; color: #92400e; }
+.roas-bad    { background: #fee2e2; color: #991b1b; }
+
+/* ── Budget planner ───────────────────────────────────────────────── */
+.planner-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr 2fr 2fr 2fr;
+  gap: 0; align-items: center;
+}
+.planner-header {
+  display: contents;
+}
+.planner-header > div {
+  font-size: 0.8rem; font-weight: 600; color: var(--text-mid);
+  padding: 10px 12px; border-bottom: 2px solid var(--border);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.planner-row { display: contents; }
+.planner-row > * {
+  padding: 10px 12px; border-bottom: 1px solid #f0f0f5; font-size: 0.88rem;
+}
+.planner-row:hover > * { background: #fafbff; }
+.ch-name { font-weight: 600; }
+.ch-type { color: var(--text-mid); font-size: 0.82rem; }
+.budget-input {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-family: var(--font); font-size: 0.88rem;
+  transition: border-color 0.15s;
+}
+.budget-input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.12); }
+.proj-value { font-weight: 600; color: #11998e; }
+
+.totals-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr 2fr 2fr 2fr;
+  padding: 12px; background: linear-gradient(135deg,rgba(102,126,234,0.06),rgba(118,75,162,0.06));
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  font-weight: 700; font-size: 0.9rem;
+}
+.totals-row > *      { padding: 6px 12px; }
+.totals-row .t-label { color: var(--text-mid); }
+
+/* ── Submit area ──────────────────────────────────────────────────── */
+.submit-area { margin-top: 1.5rem; }
+.field-row { display: flex; gap: 1rem; margin-bottom: 1rem; }
+.field-row input, .field-row textarea {
+  flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 0.9rem;
+  transition: border-color 0.15s;
+}
+.field-row input:focus, .field-row textarea:focus {
+  outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.12);
+}
+.btn-primary {
+  padding: 0.7rem 2rem; border: none; border-radius: 10px;
+  background: var(--grad-primary); color: white; font-size: 0.95rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(102,126,234,0.35); transition: all 0.15s;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(102,126,234,0.45); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.success-banner {
+  display: none; padding: 14px 18px; border-radius: 10px; margin-top: 1rem;
+  background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46; font-weight: 500;
+}
+
+/* ── KAI chat ─────────────────────────────────────────────────────── */
+.chat-wrap    { display: flex; flex-direction: column; gap: 1rem; }
+.chat-history { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; padding: 0.25rem; }
+.msg { max-width: 80%; padding: 12px 16px; border-radius: 14px; font-size: 0.9rem; line-height: 1.55; }
+.msg-user { background: var(--grad-primary); color: white; align-self: flex-end; border-radius: 14px 14px 4px 14px; }
+.msg-kai  { background: #f3f4f8; color: var(--text-dark); align-self: flex-start; border-radius: 14px 14px 14px 4px; }
+.msg-kai pre { white-space: pre-wrap; font-family: inherit; }
+.typing-indicator { display: flex; gap: 4px; align-items: center; padding: 12px 16px; }
+.typing-dot { width: 8px; height: 8px; border-radius: 50%; background: #667eea; animation: bounce 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+.chat-suggestions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.suggest-btn {
+  padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 500;
+  border: 1px solid #667eea; color: #667eea; background: white; transition: all 0.15s;
+}
+.suggest-btn:hover { background: var(--grad-primary); color: white; border-color: transparent; }
+.chat-input-row { display: flex; gap: 0.5rem; }
+.chat-input-row input {
+  flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 0.9rem;
+}
+.chat-input-row input:focus { outline: none; border-color: #667eea; }
+.send-btn {
+  padding: 10px 18px; border: none; border-radius: 10px;
+  background: var(--grad-primary); color: white; font-weight: 600;
+}
+.kai-disclaimer {
+  font-size: 0.75rem; color: var(--text-mid); text-align: center; margin-top: 0.5rem;
+}
+
+/* ── Feedback modal ───────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: white; border-radius: var(--radius-xl); padding: 2rem;
+  width: 480px; max-width: 95vw; box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+  animation: modalIn 0.2s ease;
+}
+@keyframes modalIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+.modal-box h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+.modal-box p  { color: var(--text-mid); font-size: 0.9rem; margin-bottom: 1.25rem; }
+.modal-box textarea, .modal-box input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 0.9rem; margin-bottom: 0.75rem; resize: vertical;
+}
+.modal-box textarea:focus, .modal-box input:focus { outline: none; border-color: #667eea; }
+.modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem; }
+.btn-cancel {
+  padding: 0.6rem 1.4rem; border: 1px solid var(--border); border-radius: 8px;
+  background: white; font-size: 0.88rem; font-weight: 500; color: var(--text-mid);
+}
+.btn-send {
+  padding: 0.6rem 1.4rem; border: none; border-radius: 8px;
+  background: var(--grad-primary); color: white; font-size: 0.88rem; font-weight: 600;
+}
+
+/* ── Loading state ────────────────────────────────────────────────── */
+.spinner { display: flex; align-items: center; justify-content: center; height: 200px; }
+.spin-ring {
+  width: 48px; height: 48px; border: 4px solid #e5e7eb;
+  border-top-color: #667eea; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Page visibility ──────────────────────────────────────────────── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .metric-grid   { grid-template-columns: repeat(2, 1fr); }
+  .two-col       { grid-template-columns: 1fr; }
+  .three-col     { grid-template-columns: 1fr; }
+  .planner-grid  { overflow-x: auto; }
+  .topbar        { padding: 0 1rem; }
+  .main          { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── Top navigation bar ─────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="topbar-brand">🎯 Q2 Budget Planner</div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showPage('overview')">📊 Overview</button>
+    <button class="nav-btn" onclick="showPage('planner')">💰 Budget Planner</button>
+    <button class="nav-btn" onclick="showPage('kai')">🤖 Ask KAI</button>
+  </nav>
+  <div class="topbar-actions">
+    <button class="fb-btn" onclick="openFeedback()">💬 Feedback</button>
+  </div>
+</header>
+
+<!-- ── Main content ───────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- Loading state -->
+  <div id="loading" class="spinner"><div class="spin-ring"></div></div>
+
+  <!-- Error state -->
+  <div id="error-state" style="display:none;">
+    <div class="warning-box" id="error-msg"></div>
+  </div>
+
+  <!-- ── OVERVIEW page ──────────────────────────────────────────── -->
+  <div id="page-overview" class="page">
+    <div class="hero">
+      <div class="hero-title">Q1 2024 — Marketing Performance</div>
+      <div class="hero-sub">Review channel-level results before planning your Q2 budget allocation.</div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card mc-purple">
+        <div class="mc-label">Total Q1 Spend</div>
+        <div class="mc-value" id="kpi-spend">—</div>
+        <div class="mc-delta">Across 7 channels</div>
+      </div>
+      <div class="metric-card mc-green">
+        <div class="mc-label">Vouchers Sold</div>
+        <div class="mc-value" id="kpi-vouchers">—</div>
+        <div class="mc-delta">Total purchases Q1</div>
+      </div>
+      <div class="metric-card mc-orange">
+        <div class="mc-label">Revenue (GMV)</div>
+        <div class="mc-value" id="kpi-revenue">—</div>
+        <div class="mc-delta">Gross Merchandise Value</div>
+      </div>
+      <div class="metric-card mc-pink">
+        <div class="mc-label">Overall ROAS</div>
+        <div class="mc-value" id="kpi-roas">—</div>
+        <div class="mc-delta">Revenue ÷ Spend</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="glass">
+        <h3>ROAS by Channel</h3>
+        <canvas id="roas-chart" height="260"></canvas>
+      </div>
+      <div class="glass">
+        <h3>Channel Breakdown</h3>
+        <table class="data-table" id="channel-table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Q1 Spend</th>
+              <th>Vouchers</th>
+              <th>ROAS</th>
+              <th>Margin/£</th>
+            </tr>
+          </thead>
+          <tbody id="channel-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="overview-insights"></div>
+  </div>
+
+  <!-- ── BUDGET PLANNER page ────────────────────────────────────── -->
+  <div id="page-planner" class="page">
+    <div class="hero">
+      <div class="hero-title">Q2 Budget Planner</div>
+      <div class="hero-sub">Propose your Q2 allocation. Projected revenue updates in real time based on Q1 ROAS. Your plan is saved directly to Keboola.</div>
+    </div>
+
+    <div class="glass">
+      <h3>📋 Channel Allocation</h3>
+      <p style="color:var(--text-mid);font-size:0.85rem;margin-bottom:1rem;">
+        Q2 proposals default to 105% of Q1 actual. Owned channels (Email, Push) have no media cost — budget here funds content and creative.
+      </p>
+      <div class="planner-grid" id="planner-grid">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="totals-row" id="totals-row">
+        <div class="t-label">Totals</div>
+        <div id="t-q1">—</div>
+        <div id="t-q2">—</div>
+        <div id="t-proj">—</div>
+        <div id="t-roas">—</div>
+      </div>
+    </div>
+
+    <div class="glass submit-area">
+      <h3>📝 Submit Your Plan</h3>
+      <p style="color:var(--text-mid);font-size:0.85rem;margin-bottom:1rem;">
+        Add your name and a brief rationale, then submit. Your plan goes directly to Keboola — no spreadsheet needed.
+      </p>
+      <div class="field-row">
+        <input type="text" id="submitter-name" placeholder="Your name *" />
+        <input type="text" id="plan-period" value="Q2 2024 (Apr – Jun)" readonly style="background:#f9fafb;" />
+      </div>
+      <div class="field-row">
+        <textarea id="rationale" rows="3" placeholder="What is driving your allocation decisions? (optional)"></textarea>
+      </div>
+      <button class="btn-primary" id="submit-btn" onclick="submitPlan()" disabled>✅ Submit Budget Plan</button>
+      <div class="success-banner" id="success-banner">
+        ✅ Plan submitted successfully! Your Q2 budget allocation has been saved to Keboola.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ASK KAI page ───────────────────────────────────────────── -->
+  <div id="page-kai" class="page">
+    <div class="hero">
+      <div class="hero-title">🤖 Ask KAI</div>
+      <div class="hero-sub">Ask questions about Q1 performance and Q2 planning. KAI has full context of your channel data.</div>
+    </div>
+
+    <div class="glass chat-wrap">
+      <div class="chat-suggestions" id="kai-suggestions">
+        <button class="suggest-btn" onclick="sendKai('Which channel had the best ROAS in Q1?')">Which channel had the best ROAS in Q1?</button>
+        <button class="suggest-btn" onclick="sendKai('Should we cut TikTok in Q2?')">Should we cut TikTok in Q2?</button>
+        <button class="suggest-btn" onclick="sendKai('Where should the incremental paid budget go?')">Where should incremental paid budget go?</button>
+        <button class="suggest-btn" onclick="sendKai('Why is margin on spend different from ROAS?')">Why is margin on spend different from ROAS?</button>
+      </div>
+
+      <div class="chat-history" id="chat-history"></div>
+
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Ask about your Q1 data or Q2 plans…"
+               onkeydown="if(event.key==='Enter')sendKaiFromInput()" />
+        <button class="send-btn" onclick="sendKaiFromInput()">Send ➤</button>
+      </div>
+      <div class="kai-disclaimer">KAI responses are grounded in your Q1 weekly_channel_summary data.</div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- ── Feedback modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="feedback-modal">
+  <div class="modal-box">
+    <h3>💬 Suggest a Change</h3>
+    <p>Found something wrong or have an idea? Send it directly to the team.</p>
+    <textarea id="fb-text" rows="4" placeholder="Your suggestion…"></textarea>
+    <input type="text" id="fb-name" placeholder="Your name (optional)" />
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeFeedback()">Cancel</button>
+      <button class="btn-send" onclick="sendFeedback()">📤 Send Feedback</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── State ─────────────────────────────────────────────────────────── */
+let channels  = [];
+let budgets   = {};
+let roasChart = null;
+
+/* ── Page navigation ───────────────────────────────────────────────── */
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-btn')[['overview','planner','kai'].indexOf(name)]
+    ?.classList.add('active');
+}
+
+/* ── Formatting helpers ────────────────────────────────────────────── */
+const fmt  = n => '£' + Math.round(n).toLocaleString('en-GB');
+const fmtR = n => n == null ? '—' : n.toFixed(1) + 'x';
+const roasClass = r => r >= 7 ? 'roas-good' : r >= 3 ? 'roas-ok' : 'roas-bad';
+
+/* ── Load data on startup ──────────────────────────────────────────── */
+async function loadData() {
+  try {
+    const res  = await fetch('/api/performance');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Load failed');
+    channels = data.channels;
+    renderAll();
+    document.getElementById('loading').style.display = 'none';
+    showPage('overview');
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+    document.getElementById('error-msg').textContent =
+      '⚠️ Could not load Q1 data: ' + err.message +
+      '. The workspace may still be warming up — please refresh in 15 seconds.';
+  }
+}
+
+/* ── Render all sections ───────────────────────────────────────────── */
+function renderAll() {
+  renderKPIs();
+  renderTable();
+  renderChart();
+  renderInsights();
+  renderPlanner();
+}
+
+/* ── KPIs ──────────────────────────────────────────────────────────── */
+function renderKPIs() {
+  const totSpend   = channels.reduce((s,c) => s + c.total_spend_gbp, 0);
+  const totVouch   = channels.reduce((s,c) => s + c.total_voucher_purchases, 0);
+  const totRev     = channels.reduce((s,c) => s + c.total_revenue_gbp, 0);
+  const overallRoas = totSpend > 0 ? (totRev / totSpend) : 0;
+  document.getElementById('kpi-spend').textContent    = fmt(totSpend);
+  document.getElementById('kpi-vouchers').textContent = totVouch.toLocaleString('en-GB');
+  document.getElementById('kpi-revenue').textContent  = fmt(totRev);
+  document.getElementById('kpi-roas').textContent     = overallRoas.toFixed(1) + 'x';
+}
+
+/* ── Channel table ─────────────────────────────────────────────────── */
+function renderTable() {
+  const tbody = document.getElementById('channel-tbody');
+  tbody.innerHTML = channels.map(c => `
+    <tr>
+      <td><strong>${c.channel_name}</strong><br>
+          <span style="color:var(--text-mid);font-size:0.78rem;">${c.channel_type}</span></td>
+      <td>${fmt(c.total_spend_gbp)}</td>
+      <td>${c.total_voucher_purchases.toLocaleString()}</td>
+      <td><span class="roas-pill ${roasClass(c.roas)}">${fmtR(c.roas)}</span></td>
+      <td>${c.margin_on_spend.toFixed(2)}x</td>
+    </tr>
+  `).join('');
+}
+
+/* ── ROAS chart ────────────────────────────────────────────────────── */
+function renderChart() {
+  const ctx    = document.getElementById('roas-chart').getContext('2d');
+  const labels = channels.map(c => c.channel_name);
+  const values = channels.map(c => c.roas);
+  const colors = values.map(r =>
+    r >= 7 ? 'rgba(17,153,142,0.85)' : r >= 3 ? 'rgba(242,153,74,0.85)' : 'rgba(238,9,121,0.85)'
+  );
+  if (roasChart) roasChart.destroy();
+  roasChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+    options: {
+      indexAxis: 'y', plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.raw.toFixed(1) + 'x ROAS' } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'ROAS (£ revenue per £1 spent)', font: { size: 11 } },
+             grid: { color: '#f0f0f5' } },
+        y: { grid: { display: false } }
+      },
+    }
+  });
+}
+
+/* ── Insights callouts ─────────────────────────────────────────────── */
+function renderInsights() {
+  const owned = channels.filter(c => c.channel_type === 'Owned Media');
+  const ownedNames = owned.map(c => c.channel_name).join(' & ');
+  const ownedSpend = owned.reduce((s,c) => s + c.total_spend_gbp, 0);
+  const totSpend   = channels.reduce((s,c) => s + c.total_spend_gbp, 0);
+  const ownedPct   = totSpend > 0 ? (ownedSpend / totSpend * 100).toFixed(0) : 0;
+  const ownedVouch = owned.reduce((s,c) => s + c.total_voucher_purchases, 0);
+  const totVouch   = channels.reduce((s,c) => s + c.total_voucher_purchases, 0);
+  const ownedVPct  = totVouch > 0 ? (ownedVouch / totVouch * 100).toFixed(0) : 0;
+  const bad = channels.filter(c => c.roas < 1.5 && c.total_spend_gbp > 0);
+
+  let html = `
+    <div class="insight-box">
+      🎯 <strong>Owned channel efficiency:</strong> ${ownedNames} account for just ${ownedPct}% of Q1 spend
+      but drove ${ownedVPct}% of all voucher purchases. You cannot scale these with media budget —
+      their reach is limited to your existing subscriber base.
+    </div>`;
+  if (bad.length) {
+    html += `
+    <div class="warning-box">
+      ⚠️ <strong>Channels below break-even:</strong>
+      ${bad.map(c => `<strong>${c.channel_name}</strong> (${fmtR(c.roas)} ROAS)`).join(', ')}
+      — spending more than returning in revenue. Review Q2 allocation carefully for these channels.
+    </div>`;
+  }
+  const topPaid = channels.filter(c => c.channel_type !== 'Owned Media').sort((a,b) => b.margin_on_spend - a.margin_on_spend)[0];
+  if (topPaid) {
+    html += `
+    <div class="action-box">
+      💡 <strong>Best margin return from paid:</strong> ${topPaid.channel_name} returns
+      ${topPaid.margin_on_spend.toFixed(2)}x in platform margin per £1 spent —
+      higher than its ROAS peers when margin rate is factored in.
+    </div>`;
+  }
+  document.getElementById('overview-insights').innerHTML = html;
+}
+
+/* ── Budget planner ────────────────────────────────────────────────── */
+function renderPlanner() {
+  channels.forEach(c => {
+    if (budgets[c.channel_id] === undefined)
+      budgets[c.channel_id] = Math.round(c.total_spend_gbp * 1.05 / 500) * 500;
+  });
+
+  const grid = document.getElementById('planner-grid');
+  grid.innerHTML = `
+    <div class="planner-header">
+      <div>Channel</div>
+      <div>Channel Type</div>
+      <div>Q1 Actual (£)</div>
+      <div>Q2 Proposed (£)</div>
+      <div>Projected Revenue</div>
+    </div>
+    ${channels.map(c => `
+      <div class="planner-row">
+        <div class="ch-name">${c.channel_name}</div>
+        <div class="ch-type">${c.channel_type}</div>
+        <div>${fmt(c.total_spend_gbp)}</div>
+        <div>
+          <input class="budget-input" type="number" step="500" min="0"
+            value="${budgets[c.channel_id]}"
+            onchange="updateBudget('${c.channel_id}', this.value)"
+            oninput="updateBudget('${c.channel_id}', this.value)" />
+        </div>
+        <div class="proj-value" id="proj-${c.channel_id}">${fmt(budgets[c.channel_id] * c.roas)}</div>
+      </div>
+    `).join('')}
+  `;
+  updateTotals();
+
+  // Enable submit when name is entered
+  document.getElementById('submitter-name').addEventListener('input', () => {
+    document.getElementById('submit-btn').disabled =
+      !document.getElementById('submitter-name').value.trim();
+  });
+}
+
+function updateBudget(channelId, val) {
+  budgets[channelId] = parseFloat(val) || 0;
+  const ch   = channels.find(c => c.channel_id === channelId);
+  const proj = budgets[channelId] * (ch?.roas || 0);
+  document.getElementById('proj-' + channelId).textContent = fmt(proj);
+  updateTotals();
+}
+
+function updateTotals() {
+  const tQ1   = channels.reduce((s,c) => s + c.total_spend_gbp, 0);
+  const tQ2   = channels.reduce((s,c) => s + (budgets[c.channel_id] || 0), 0);
+  const tProj = channels.reduce((s,c) => s + (budgets[c.channel_id] || 0) * c.roas, 0);
+  const tRoas = tQ2 > 0 ? (tProj / tQ2) : 0;
+  const delta = tQ2 - tQ1;
+  document.getElementById('t-q1').textContent   = fmt(tQ1);
+  document.getElementById('t-q2').innerHTML     =
+    `${fmt(tQ2)} <span style="font-size:0.78rem;color:${delta>=0?'#11998e':'#ee0979'}">
+      (${delta>=0?'+':''}${fmt(delta)} vs Q1)</span>`;
+  document.getElementById('t-proj').textContent = fmt(tProj);
+  document.getElementById('t-roas').textContent = fmtR(tRoas);
+}
+
+/* ── Submit plan ───────────────────────────────────────────────────── */
+async function submitPlan() {
+  const name      = document.getElementById('submitter-name').value.trim();
+  const rationale = document.getElementById('rationale').value.trim();
+  if (!name) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+
+  const planId    = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const timestamp = new Date().toISOString();
+
+  const rows = channels.map(c => ({
+    plan_id:               planId,
+    channel_id:            c.channel_id,
+    channel_name:          c.channel_name,
+    plan_period_start:     '2024-04-01',
+    plan_period_end:       '2024-06-30',
+    proposed_budget_gbp:   (budgets[c.channel_id] || 0).toFixed(2),
+    q1_actual_spend_gbp:   c.total_spend_gbp.toFixed(2),
+    q1_roas:               c.roas.toFixed(2),
+    projected_revenue_gbp: ((budgets[c.channel_id] || 0) * c.roas).toFixed(2),
+    rationale:             rationale.replace(/\n/g, ' '),
+    submitted_by:          name,
+    submitted_at:          timestamp,
+    status:                'submitted',
+  }));
+
+  try {
+    const res = await fetch('/api/submit-plan', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ rows }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Save failed');
+    document.getElementById('success-banner').style.display = 'block';
+    document.getElementById('success-banner').textContent =
+      `✅ Plan ${planId} submitted! Your Q2 allocation has been saved to Keboola.`;
+    btn.textContent = '✅ Submitted';
+  } catch (err) {
+    btn.disabled = false; btn.textContent = '✅ Submit Budget Plan';
+    alert('Error saving plan: ' + err.message);
+  }
+}
+
+/* ── KAI chat ──────────────────────────────────────────────────────── */
+function appendMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg msg-' + role;
+  div.innerHTML = role === 'kai'
+    ? text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    : text;
+  document.getElementById('chat-history').appendChild(div);
+  div.scrollIntoView({ behavior:'smooth', block:'end' });
+  return div;
+}
+
+function showTyping() {
+  const el = document.createElement('div');
+  el.className = 'msg msg-kai typing-indicator'; el.id = 'typing';
+  el.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  document.getElementById('chat-history').appendChild(el);
+  el.scrollIntoView({ behavior:'smooth', block:'end' });
+}
+
+function removeTyping() {
+  document.getElementById('typing')?.remove();
+}
+
+async function sendKai(message) {
+  if (!message.trim()) return;
+  document.getElementById('kai-suggestions').style.display = 'none';
+  appendMsg('user', message);
+  showTyping();
+
+  const kaiDiv = null;
+  try {
+    const res = await fetch('/api/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message }),
+    });
+
+    removeTyping();
+    const responseDiv = appendMsg('kai', '');
+
+    if (res.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = res.body.getReader();
+      const dec    = new TextDecoder();
+      let   buf    = '';
+      let   full   = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') break;
+          try {
+            const { text } = JSON.parse(payload);
+            full += text;
+            responseDiv.innerHTML = full
+              .replace(/\n/g,'<br>')
+              .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+            responseDiv.scrollIntoView({ behavior:'smooth', block:'end' });
+          } catch(_) {}
+        }
+      }
+    } else {
+      const data = await res.json();
+      responseDiv.innerHTML = (data.text || data.error || 'No response')
+        .replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    }
+  } catch (err) {
+    removeTyping();
+    appendMsg('kai', '⚠️ Could not reach KAI: ' + err.message);
+  }
+}
+
+function sendKaiFromInput() {
+  const input = document.getElementById('chat-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  sendKai(msg);
+}
+
+/* ── Feedback modal ────────────────────────────────────────────────── */
+function openFeedback()  { document.getElementById('feedback-modal').classList.add('open'); }
+function closeFeedback() { document.getElementById('feedback-modal').classList.remove('open'); }
+
+async function sendFeedback() {
+  const text = document.getElementById('fb-text').value.trim();
+  const name = document.getElementById('fb-name').value.trim();
+  if (!text) { alert('Please enter your feedback first'); return; }
+
+  const WEBHOOK = window.FEEDBACK_WEBHOOK_URL || '';
+  if (!WEBHOOK) {
+    alert('Feedback submitted (webhook not configured — contact your admin to enable Google Chat notifications).');
+    closeFeedback();
+    return;
+  }
+
+  const msg = `📝 *Feedback${name ? ' from *' + name + '*' : ''}:*\n${text}\n\n🔗 App: ${window.location.origin}`;
+  try {
+    await fetch(WEBHOOK, { method:'POST', body: JSON.stringify({ text: msg }) });
+  } catch(_) {}
+  alert('✅ Feedback sent — thank you!');
+  closeFeedback();
+  document.getElementById('fb-text').value = '';
+  document.getElementById('fb-name').value = '';
+}
+
+/* ── Expose webhook for server injection (set via window.FEEDBACK_WEBHOOK_URL) */
+window.FEEDBACK_WEBHOOK_URL = '';  // Replace with webhook URL or inject via server-side template
+
+/* ── Boot ──────────────────────────────────────────────────────────── */
+loadData();
+</script>
+</body>
+</html>

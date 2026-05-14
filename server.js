@@ -16,6 +16,24 @@ const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan';
 
 app.use(express.json({ limit: '2mb' }));
 
+// ── Multipart form builder (avoids FormData/Blob compat issues with node-fetch) ──
+function buildMultipart(fields, file) {
+  const boundary = '----KeboolaBoundary' + randomUUID().replace(/-/g, '');
+  const CRLF = '\r\n';
+  let body = '';
+  for (const [name, value] of Object.entries(fields)) {
+    body += `--${boundary}${CRLF}`;
+    body += `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}`;
+    body += `${value}${CRLF}`;
+  }
+  body += `--${boundary}${CRLF}`;
+  body += `Content-Disposition: form-data; name="${file.field}"; filename="${file.filename}"${CRLF}`;
+  body += `Content-Type: ${file.contentType}${CRLF}${CRLF}`;
+  body += `${file.content}${CRLF}`;
+  body += `--${boundary}--${CRLF}`;
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
 // ── CSV helpers ────────────────────────────────────────────────────────────
 function parseCSVLine(line) {
   const result = [];
@@ -182,38 +200,35 @@ app.post('/api/submit-plan', async (req, res) => {
       ),
     ].join('\n');
 
-    const headers = { 'X-StorageApi-Token': KBC_TOKEN };
+    const kbcHeaders = { 'X-StorageApi-Token': KBC_TOKEN };
+    const filePayload = { field: 'data', filename: 'plan.csv', contentType: 'text/csv', content: csv };
 
     // Try incremental import into existing table
-    const importForm = new FormData();
-    importForm.append('data', new Blob([csv], { type: 'text/csv' }), 'plan.csv');
-    importForm.append('incremental', '1');
-
+    const { body: importBody, contentType: importCT } = buildMultipart({ incremental: '1' }, filePayload);
     const importRes = await fetch(
       `${KBC_URL}/v2/storage/tables/${BUDGET_PLAN_TABLE}/import-async`,
-      { method: 'POST', headers, body: importForm }
+      { method: 'POST', headers: { ...kbcHeaders, 'Content-Type': importCT }, body: importBody }
     );
 
-    // Table doesn't exist yet — create it with the CSV data
+    // Table doesn't exist yet — create it
     if (importRes.status === 404) {
       const [bucketId, tableName] = BUDGET_PLAN_TABLE.split(/\.(?=[^.]+$)/);
-      const createForm = new FormData();
-      createForm.append('name', tableName);
-      createForm.append('data', new Blob([csv], { type: 'text/csv' }), 'plan.csv');
-      createForm.append('primaryKey', 'plan_id,channel_id');
-
+      const { body: createBody, contentType: createCT } = buildMultipart(
+        { name: tableName, primaryKey: 'plan_id,channel_id' },
+        filePayload
+      );
       const createRes = await fetch(
         `${KBC_URL}/v2/storage/buckets/${bucketId}/tables-async`,
-        { method: 'POST', headers, body: createForm }
+        { method: 'POST', headers: { ...kbcHeaders, 'Content-Type': createCT }, body: createBody }
       );
-      const createBody = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) return res.status(createRes.status).json({ error: createBody?.message || 'Failed to create table' });
-      return res.json({ ok: true, jobId: createBody.id });
+      const createJson = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) return res.status(createRes.status).json({ error: createJson?.message || 'Failed to create table' });
+      return res.json({ ok: true, jobId: createJson.id });
     }
 
-    const importBody = await importRes.json().catch(() => ({}));
-    if (!importRes.ok) return res.status(importRes.status).json({ error: importBody?.message || 'Keboola write error' });
-    res.json({ ok: true, jobId: importBody.id });
+    const importJson = await importRes.json().catch(() => ({}));
+    if (!importRes.ok) return res.status(importRes.status).json({ error: importJson?.message || 'Keboola write error' });
+    res.json({ ok: true, jobId: importJson.id });
   } catch (err) {
     console.error('POST /api/submit-plan error:', err);
     res.status(500).json({ error: err.message });

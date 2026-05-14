@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Q2 Budget Planner</title>
+<title>Q3 2026 Budget Planner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -288,7 +288,7 @@ button { font-family: var(--font); cursor: pointer; }
 
 <!-- ── Top navigation bar ─────────────────────────────────────────── -->
 <header class="topbar">
-  <div class="topbar-brand">🎯 Q2 Budget Planner</div>
+  <div class="topbar-brand">🎯 Q3 2026 Budget Planner</div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showPage('overview')">📊 Overview</button>
     <button class="nav-btn" onclick="showPage('planner')">💰 Budget Planner</button>
@@ -313,7 +313,7 @@ button { font-family: var(--font); cursor: pointer; }
   <!-- ── OVERVIEW page ──────────────────────────────────────────── -->
   <div id="page-overview" class="page">
     <div class="hero">
-      <div class="hero-title">Q1 2024 — Marketing Performance</div>
+      <div class="hero-title">Q1 2026 — Marketing Performance</div>
       <div class="hero-sub">Review channel-level results before planning your Q2 budget allocation.</div>
     </div>
 
@@ -368,8 +368,8 @@ button { font-family: var(--font); cursor: pointer; }
   <!-- ── BUDGET PLANNER page ────────────────────────────────────── -->
   <div id="page-planner" class="page">
     <div class="hero">
-      <div class="hero-title">Q2 Budget Planner</div>
-      <div class="hero-sub">Propose your Q2 allocation. Projected revenue updates in real time based on Q1 ROAS. Your plan is saved directly to Keboola.</div>
+      <div class="hero-title">Q3 2026 Budget Planner</div>
+      <div class="hero-sub">Propose your Q3 2026 allocation (Jul – Sep). Projected revenue updates in real time based on Q1 2026 ROAS. Your plan is saved directly to Keboola.</div>
     </div>
 
     <div class="glass">
@@ -396,7 +396,7 @@ button { font-family: var(--font); cursor: pointer; }
       </p>
       <div class="field-row">
         <input type="text" id="submitter-name" placeholder="Your name *" />
-        <input type="text" id="plan-period" value="Q2 2024 (Apr – Jun)" readonly style="background:#f9fafb;" />
+        <input type="text" id="plan-period" value="Q3 2026 (Jul – Sep)" readonly style="background:#f9fafb;" />
       </div>
       <div class="field-row">
         <textarea id="rationale" rows="3" placeholder="What is driving your allocation decisions? (optional)"></textarea>
@@ -667,8 +667,8 @@ async function submitPlan() {
     plan_id:               planId,
     channel_id:            c.channel_id,
     channel_name:          c.channel_name,
-    plan_period_start:     '2024-04-01',
-    plan_period_end:       '2024-06-30',
+    plan_period_start:     '2026-07-01',
+    plan_period_end:       '2026-09-30',
     proposed_budget_usd:   (budgets[c.channel_id] || 0).toFixed(2),
     q1_actual_spend_usd:   c.total_spend_gbp.toFixed(2),
     q1_roas:               c.roas.toFixed(2),

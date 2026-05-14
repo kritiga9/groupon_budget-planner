@@ -2,6 +2,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -14,6 +15,38 @@ const PERFORMANCE_TABLE = 'out.c-marketing-analytics.weekly_channel_summary';
 const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan';
 
 app.use(express.json({ limit: '2mb' }));
+
+// ── Kai URL discovery (cached per process) ─────────────────────────────────
+let _kaiBaseUrl = null;
+let _kaiUnavailable = false;
+
+async function getKaiBaseUrl() {
+  if (_kaiBaseUrl) return _kaiBaseUrl;
+  if (_kaiUnavailable) throw new Error('Kai not available on this stack');
+  const r = await fetch(`${KBC_URL}/v2/storage`, {
+    headers: { 'x-storageapi-token': KBC_TOKEN },
+  });
+  if (!r.ok) { _kaiUnavailable = true; throw new Error(`Storage API ${r.status}`); }
+  const data = await r.json();
+  const svc = data.services?.find(s => s.id === 'kai-assistant');
+  if (!svc?.url) { _kaiUnavailable = true; throw new Error('kai-assistant service not found'); }
+  _kaiBaseUrl = svc.url.replace(/\/$/, '');
+  return _kaiBaseUrl;
+}
+
+function buildKaiContext() {
+  return `You are an AI assistant embedded in the Groupon Q2 Budget Planner data app.
+
+FORMATTING: Use standard Unicode emoji only (✅ ⚠️ ❌ 💡 📊 📈 📉 💰 🎯). Use markdown tables for comparisons. Be concise — max 5-6 sentences unless detail is requested.
+
+APP CONTEXT: This app helps the Groupon marketing team review Q1 2024 channel performance and plan Q2 budget.
+Data source: out.c-marketing-analytics.weekly_channel_summary
+Channels: Email Marketing, Push Notifications (Owned Media — near-zero cost, high ROAS but not scalable with budget), Meta Ads, Google Search, Affiliate, Display/Programmatic, TikTok (Paid Media)
+Key metrics: ROAS = revenue ÷ spend | Margin on Spend = platform_margin ÷ spend | Cost per Voucher = spend ÷ voucher_purchases
+Planning period: Q2 2024 (Apr–Jun)
+
+User question: `;
+}
 
 // ── Health / root (Keboola POSTs to / on startup) ──────────────────────────
 app.all('/', (req, res) => res.sendFile(join(__dirname, 'index.html')));
@@ -127,11 +160,11 @@ app.post('/api/submit-plan', async (req, res) => {
 });
 
 // ── POST /api/chat ─────────────────────────────────────────────────────────
-// Lightweight AI chat — streams a response grounded in channel data
-// Uses Keboola's internal AI endpoint when KBC_TOKEN is present;
-// falls back to a context-aware canned response for demos.
+// Streams a Kai AI response grounded in channel data.
+// Uses the real Kai API (discovered from Storage) when KBC_TOKEN is present;
+// falls back to context-aware canned responses for demos.
 app.post('/api/chat', async (req, res) => {
-  const { message, context } = req.body;
+  const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'No message' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -142,21 +175,65 @@ app.post('/api/chat', async (req, res) => {
   const send = (text) => res.write(`data: ${JSON.stringify({ text })}\n\n`);
   const done  = ()     => { res.write('data: [DONE]\n\n'); res.end(); };
 
-  // Try Keboola AI endpoint first
+  // Try real Kai API
   if (KBC_TOKEN) {
     try {
-      const aiUrl = `${KBC_URL}/v2/ai/conversations`;
-      const convR = await fetch(aiUrl, {
+      const baseUrl = await getKaiBaseUrl();
+      const chatId  = randomUUID();
+      const msgId   = randomUUID();
+
+      const kaiRes = await fetch(`${baseUrl}/api/chat`, {
         method:  'POST',
-        headers: { 'X-StorageApi-Token': KBC_TOKEN, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message, context }),
+        headers: {
+          'Content-Type':       'application/json',
+          'x-storageapi-token': KBC_TOKEN,
+          'x-storageapi-url':   KBC_URL,
+        },
+        body: JSON.stringify({
+          id: chatId,
+          message: {
+            id:    msgId,
+            role:  'user',
+            parts: [{ type: 'text', text: buildKaiContext() + message }],
+            metadata: { hidden: false, requestContext: { path: '/budget-planner' } },
+          },
+          selectedChatModel:      'chat-model',
+          selectedVisibilityType: 'private',
+          branchId:               null,
+        }),
       });
-      if (convR.ok) {
-        const convData = await convR.json();
-        send(convData.response || convData.message || JSON.stringify(convData));
+
+      if (kaiRes.ok) {
+        let buf = '';
+        let currentEventType = '';
+
+        for await (const chunk of kaiRes.body) {
+          buf += Buffer.from(chunk).toString('utf8');
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+
+          for (const raw of lines) {
+            const line = raw.replace(/\r$/, '');
+            if (line === '') { currentEventType = ''; continue; }
+            if (line.startsWith('event:')) {
+              currentEventType = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              const payload = line.slice(5).trim();
+              if (payload === '[DONE]') { done(); return; }
+              try {
+                const parsed = JSON.parse(payload);
+                const evType = currentEventType || parsed.type;
+                if (evType === 'text' && parsed.text) send(parsed.text);
+              } catch (_) {}
+            }
+          }
+        }
         return done();
       }
-    } catch (_) { /* fall through to context-aware fallback */ }
+      console.error('Kai API returned', kaiRes.status);
+    } catch (err) {
+      console.error('Kai error:', err.message);
+    }
   }
 
   // Context-aware fallback (used in demo when AI endpoint isn't available)

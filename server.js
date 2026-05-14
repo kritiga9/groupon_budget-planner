@@ -182,8 +182,7 @@ app.get('/api/performance', async (req, res) => {
 });
 
 // ── POST /api/submit-plan ──────────────────────────────────────────────────
-// Writes budget plan rows to Keboola Storage (incremental).
-// Creates the table automatically on first submit if it doesn't exist yet.
+// Writes budget plan rows to Keboola Storage (incremental upsert).
 app.post('/api/submit-plan', async (req, res) => {
   try {
     const { rows } = req.body;
@@ -200,34 +199,26 @@ app.post('/api/submit-plan', async (req, res) => {
       ),
     ].join('\n');
 
-    const kbcHeaders = { 'X-StorageApi-Token': KBC_TOKEN };
-    const filePayload = { field: 'data', filename: 'plan.csv', contentType: 'text/csv', content: csv };
+    const form = new FormData();
+    form.append('incremental', '1');
+    form.append('data', new Blob([csv], { type: 'text/csv' }), 'plan.csv');
 
-    // Try incremental import into existing table
-    const { body: importBody, contentType: importCT } = buildMultipart({ incremental: '1' }, filePayload);
     const importRes = await fetch(
       `${KBC_URL}/v2/storage/tables/${BUDGET_PLAN_TABLE}/import-async`,
-      { method: 'POST', headers: { ...kbcHeaders, 'Content-Type': importCT }, body: importBody }
+      { method: 'POST', headers: { 'X-StorageApi-Token': KBC_TOKEN }, body: form }
     );
 
-    // Table doesn't exist yet — create it
-    if (importRes.status === 404) {
-      const [bucketId, tableName] = BUDGET_PLAN_TABLE.split(/\.(?=[^.]+$)/);
-      const { body: createBody, contentType: createCT } = buildMultipart(
-        { name: tableName, primaryKey: 'plan_id,channel_id' },
-        filePayload
-      );
-      const createRes = await fetch(
-        `${KBC_URL}/v2/storage/buckets/${bucketId}/tables-async`,
-        { method: 'POST', headers: { ...kbcHeaders, 'Content-Type': createCT }, body: createBody }
-      );
-      const createJson = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) return res.status(createRes.status).json({ error: createJson?.message || 'Failed to create table' });
-      return res.json({ ok: true, jobId: createJson.id });
+    const importText = await importRes.text();
+    let importJson;
+    try { importJson = JSON.parse(importText); } catch (_) { importJson = {}; }
+
+    if (!importRes.ok) {
+      console.error('Keboola import-async error', importRes.status, importText.slice(0, 500));
+      return res.status(importRes.status).json({
+        error: importJson?.message || importJson?.error || `Keboola error ${importRes.status}`,
+      });
     }
 
-    const importJson = await importRes.json().catch(() => ({}));
-    if (!importRes.ok) return res.status(importRes.status).json({ error: importJson?.message || 'Keboola write error' });
     res.json({ ok: true, jobId: importJson.id });
   } catch (err) {
     console.error('POST /api/submit-plan error:', err);

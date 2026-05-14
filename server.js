@@ -12,7 +12,7 @@ const KBC_URL   = (process.env.KBC_URL   || 'https://connection.europe-west3.gcp
 const KBC_TOKEN = process.env.KBC_TOKEN  || '';
 
 const PERFORMANCE_TABLE = 'out.c-marketing-analytics.weekly_channel_summary';
-const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan';
+const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan_usd';
 
 app.use(express.json({ limit: '2mb' }));
 
@@ -79,15 +79,15 @@ async function getKaiBaseUrl() {
 }
 
 function buildKaiContext() {
-  return `You are an AI assistant embedded in the Groupon Q2 Budget Planner data app.
+  return `You are an AI assistant embedded in the Groupon Q3 2026 Budget Planner data app.
 
 FORMATTING: Use standard Unicode emoji only (✅ ⚠️ ❌ 💡 📊 📈 📉 💰 🎯). Use markdown tables for comparisons. Be concise — max 5-6 sentences unless detail is requested.
 
-APP CONTEXT: This app helps the Groupon marketing team review Q1 2024 channel performance and plan Q2 budget.
+APP CONTEXT: This app helps the Groupon marketing team review Q1 2026 channel performance and plan Q3 2026 budget.
 Data source: out.c-marketing-analytics.weekly_channel_summary
 Channels: Email Marketing, Push Notifications (Owned Media — near-zero cost, high ROAS but not scalable with budget), Meta Ads, Google Search, Affiliate, Display/Programmatic, TikTok (Paid Media)
 Currency: USD | Key metrics: ROAS = revenue ÷ spend | Margin on Spend = platform_margin ÷ spend | Cost per Voucher = spend ÷ voucher_purchases
-Planning period: Q2 2024 (Apr–Jun)
+Planning period: Q3 2026 (Jul–Sep)
 
 User question: `;
 }
@@ -319,17 +319,17 @@ app.post('/api/chat', async (req, res) => {
   if (lower.includes('roas') || lower.includes('return')) {
     reply = `Based on Q1 data:\n\n**ROAS by channel:**\n- Push Notifications: **291x** 🟢\n- Email Marketing: **97x** 🟢\n- Meta Ads: **10.5x** 🟡\n- Google Search: **8.4x** 🟡\n- Affiliate: **7.4x** 🟡\n- Display: **1.2x** 🔴\n- TikTok: **0.7x** 🔴\n\nOwned channels dominate on ROAS because they have near-zero media cost. For paid-only channels, Google Search and Meta are your strongest performers.`;
   } else if (lower.includes('tiktok')) {
-    reply = `TikTok ended Q1 at **0.7x ROAS** — spending £38,707 against £27,063 in revenue. That's a loss at the margin level.\n\nHowever, this dataset can't tell you whether TikTok is driving branded search uplift. The data-supported position: **reduce TikTok to a test budget of £5–8K** for Q2 and monitor whether Google Search branded volume moves before making a kill decision.`;
+    reply = `TikTok ended Q1 at **0.7x ROAS** — spending £38,707 against £27,063 in revenue. That's a loss at the margin level.\n\nHowever, this dataset can't tell you whether TikTok is driving branded search uplift. The data-supported position: **reduce TikTok to a test budget of $5–8K** for Q3 and monitor whether Google Search branded volume moves before making a kill decision.`;
   } else if (lower.includes('display') || lower.includes('programmatic')) {
-    reply = `Display / Programmatic returned **1.22x ROAS** in Q1 on £25,150 spend — barely covering media cost. The cost per voucher was £125.75, which is economically viable only for Travel (high AOV) but very poor for Food & Drink.\n\nRecommendation: **cut or heavily reduce Display for Q2** unless you're running a specific brand awareness play with a separate measurement approach.`;
+    reply = `Display / Programmatic returned **1.22x ROAS** in Q1 on £25,150 spend — barely covering media cost. The cost per voucher was £125.75, which is economically viable only for Travel (high AOV) but very poor for Food & Drink.\n\nRecommendation: **cut or heavily reduce Display for Q3** unless you're running a specific brand awareness play with a separate measurement approach.`;
   } else if (lower.includes('email') || lower.includes('push')) {
-    reply = `Email (96.7x ROAS) and Push Notifications (291x ROAS) are your most efficient channels — but they're **owned channels with no media cost**. You can't scale them by increasing budget.\n\nThe lever for owned channels is **audience size and send quality** — growing the subscriber/app-user base and improving segmentation. Budget allocation for Q2 for these channels covers content and creative, not media buying.`;
+    reply = `Email (96.7x ROAS) and Push Notifications (291x ROAS) are your most efficient channels — but they're **owned channels with no media cost**. You can't scale them by increasing budget.\n\nThe lever for owned channels is **audience size and send quality** — growing the subscriber/app-user base and improving segmentation. Budget allocation for Q3 for these channels covers content and creative, not media buying.`;
   } else if (lower.includes('budget') || lower.includes('q2') || lower.includes('allocat')) {
-    reply = `For Q2 budget allocation, the data supports:\n\n1. **Protect Google Search** — best margin_on_spend ratio (2.75x) of paid channels\n2. **Maintain or grow Meta** — 10.5x ROAS, good volume driver\n3. **Affiliate as supplement** — low risk (commission-only), 7.4x ROAS\n4. **Reduce Display** — 1.22x ROAS doesn't justify continued spend at Q1 levels\n5. **Test TikTok at lower budget** — don't kill completely, reduce and monitor\n\nThe owned channels (Email, Push) should be set to reflect content/CRM investment, not media buying.`;
+    reply = `For Q3 budget allocation, the data supports:\n\n1. **Protect Google Search** — best margin_on_spend ratio (2.75x) of paid channels\n2. **Maintain or grow Meta** — 10.5x ROAS, good volume driver\n3. **Affiliate as supplement** — low risk (commission-only), 7.4x ROAS\n4. **Reduce Display** — 1.22x ROAS doesn't justify continued spend at Q1 levels\n5. **Test TikTok at lower budget** — don't kill completely, reduce and monitor\n\nThe owned channels (Email, Push) should be set to reflect content/CRM investment, not media buying.`;
   } else if (lower.includes('margin')) {
     reply = `ROAS and margin tell different stories:\n\n| Channel | ROAS | Margin on Spend |\n|---|---|---|\n| Google Search | 8.4x | **2.75x** |\n| Meta Ads | 10.5x | 2.47x |\n| Affiliate | 7.4x | 2.58x |\n\nGoogle Search actually returns **more margin per £1 spent** than Meta despite lower ROAS, because it captures Travel and Beauty searches (higher margin categories). Optimising for ROAS alone can steer budget toward higher-revenue but lower-margin campaigns.`;
   } else {
-    reply = `I can help you analyse the Q1 marketing performance data. Try asking me about:\n\n- **ROAS by channel** — which channels are most efficient?\n- **Q2 budget allocation** — where should the money go?\n- **TikTok or Display** — should we cut them?\n- **Email and Push** — why can't we scale them with money?\n- **Margin vs ROAS** — why are they telling different stories?`;
+    reply = `I can help you analyse the Q1 marketing performance data. Try asking me about:\n\n- **ROAS by channel** — which channels are most efficient?\n- **Q3 budget allocation** — where should the money go?\n- **TikTok or Display** — should we cut them?\n- **Email and Push** — why can't we scale them with money?\n- **Margin vs ROAS** — why are they telling different stories?`;
   }
 
   // Simulate streaming character by character
@@ -342,5 +342,5 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Q2 Budget Planner running on port ${PORT}`);
+  console.log(`Q3 2026 Budget Planner running on port ${PORT}`);
 });

@@ -205,7 +205,7 @@ app.post('/api/submit-plan', async (req, res) => {
     );
 
     const importRes = await fetch(
-      `${KBC_URL}/v2/storage/tables/${BUDGET_PLAN_TABLE}/import-async`,
+      `${KBC_URL}/v2/storage/tables/${BUDGET_PLAN_TABLE}/import`,
       { method: 'POST', headers: { 'X-StorageApi-Token': KBC_TOKEN, 'Content-Type': mpType }, body: mpBody }
     );
 
@@ -214,13 +214,13 @@ app.post('/api/submit-plan', async (req, res) => {
     try { importJson = JSON.parse(importText); } catch (_) { importJson = {}; }
 
     if (!importRes.ok) {
-      console.error('Keboola import-async error', importRes.status, importText.slice(0, 500));
+      console.error('Keboola import error', importRes.status, importText.slice(0, 500));
       return res.status(importRes.status).json({
         error: importJson?.message || importJson?.error || `Keboola error ${importRes.status}`,
       });
     }
 
-    res.json({ ok: true, jobId: importJson.id });
+    res.json({ ok: true });
   } catch (err) {
     console.error('POST /api/submit-plan error:', err);
     res.status(500).json({ error: err.message });

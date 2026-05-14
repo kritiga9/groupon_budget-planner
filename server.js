@@ -16,6 +16,32 @@ const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan';
 
 app.use(express.json({ limit: '2mb' }));
 
+// ── CSV helpers ────────────────────────────────────────────────────────────
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']));
+  });
+}
+
 // ── Kai URL discovery (cached per process) ─────────────────────────────────
 let _kaiBaseUrl = null;
 let _kaiUnavailable = false;
@@ -42,7 +68,7 @@ FORMATTING: Use standard Unicode emoji only (✅ ⚠️ ❌ 💡 📊 📈 📉 
 APP CONTEXT: This app helps the Groupon marketing team review Q1 2024 channel performance and plan Q2 budget.
 Data source: out.c-marketing-analytics.weekly_channel_summary
 Channels: Email Marketing, Push Notifications (Owned Media — near-zero cost, high ROAS but not scalable with budget), Meta Ads, Google Search, Affiliate, Display/Programmatic, TikTok (Paid Media)
-Key metrics: ROAS = revenue ÷ spend | Margin on Spend = platform_margin ÷ spend | Cost per Voucher = spend ÷ voucher_purchases
+Currency: USD | Key metrics: ROAS = revenue ÷ spend | Margin on Spend = platform_margin ÷ spend | Cost per Voucher = spend ÷ voucher_purchases
 Planning period: Q2 2024 (Apr–Jun)
 
 User question: `;
@@ -56,7 +82,7 @@ app.use(express.static(__dirname, { index: false }));
 // Returns Q1 channel-level summary aggregated from weekly_channel_summary
 app.get('/api/performance', async (req, res) => {
   try {
-    const url = `${KBC_URL}/v2/storage/tables/${PERFORMANCE_TABLE}/data-preview?limit=500&format=json`;
+    const url = `${KBC_URL}/v2/storage/tables/${PERFORMANCE_TABLE}/data-preview?limit=500`;
     const r   = await fetch(url, {
       headers: { 'X-StorageApi-Token': KBC_TOKEN },
     });
@@ -64,27 +90,40 @@ app.get('/api/performance', async (req, res) => {
       const txt = await r.text();
       return res.status(r.status).json({ error: `Keboola API error: ${txt.slice(0, 300)}` });
     }
-    const raw = await r.json();
-    // data-preview returns { columns: [...], rows: [[...], ...] } or rows as objects
-    const cols = raw.columns || [];
-    const rawRows = raw.rows || [];
-    const rows = rawRows.map(row => {
-      if (Array.isArray(row)) {
-        const obj = {};
-        cols.forEach((c, i) => { obj[c] = row[i]; });
-        return obj;
+
+    const text = await r.text();
+    let rows = [];
+    try {
+      const raw = JSON.parse(text);
+      if (Array.isArray(raw)) {
+        rows = raw;
+      } else if (raw.rows) {
+        const cols = raw.columns || [];
+        rows = raw.rows.map(row =>
+          Array.isArray(row)
+            ? Object.fromEntries(cols.map((c, i) => [c, row[i]]))
+            : row
+        );
       }
-      return row; // already an object
-    });
+    } catch (_) {
+      rows = parseCSV(text);
+    }
 
     // Aggregate to channel level (sum numeric cols, keep channel_name + channel_type)
     const agg = {};
-    const NUM = [
-      'total_spend_gbp', 'total_revenue_gbp', 'total_platform_margin_gbp',
-      'total_impressions', 'total_clicks', 'total_voucher_purchases',
-    ];
+    // Internal field names → source column names (USD)
+    const FIELD_MAP = {
+      total_spend_gbp:           'total_spend_usd',
+      total_revenue_gbp:         'total_revenue_usd',
+      total_platform_margin_gbp: 'total_platform_margin_usd',
+      total_impressions:         'total_impressions',
+      total_clicks:              'total_clicks',
+      total_voucher_purchases:   'total_voucher_purchases',
+    };
+    const NUM = Object.keys(FIELD_MAP);
     for (const row of rows) {
       const key = row.channel_id;
+      if (!key) continue;
       if (!agg[key]) {
         agg[key] = {
           channel_id:   row.channel_id,
@@ -93,7 +132,7 @@ app.get('/api/performance', async (req, res) => {
         };
         NUM.forEach(f => { agg[key][f] = 0; });
       }
-      NUM.forEach(f => { agg[key][f] += parseFloat(row[f] || 0); });
+      NUM.forEach(f => { agg[key][f] += parseFloat(row[FIELD_MAP[f]] || 0); });
     }
 
     const safe = (n) => isFinite(n) ? n : 0;

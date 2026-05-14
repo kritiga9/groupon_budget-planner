@@ -354,7 +354,7 @@ button { font-family: var(--font); cursor: pointer; }
               <th>Q1 Spend</th>
               <th>Vouchers</th>
               <th>ROAS</th>
-              <th>Margin/£</th>
+              <th>Margin/$</th>
             </tr>
           </thead>
           <tbody id="channel-tbody"></tbody>
@@ -467,7 +467,7 @@ function showPage(name) {
 }
 
 /* ── Formatting helpers ────────────────────────────────────────────── */
-const fmt  = n => '£' + Math.round(n).toLocaleString('en-GB');
+const fmt  = n => '$' + Math.round(n).toLocaleString('en-US');
 const fmtR = n => n == null ? '—' : n.toFixed(1) + 'x';
 const roasClass = r => r >= 7 ? 'roas-good' : r >= 3 ? 'roas-ok' : 'roas-bad';
 
@@ -506,7 +506,7 @@ function renderKPIs() {
   const totRev     = channels.reduce((s,c) => s + c.total_revenue_gbp, 0);
   const overallRoas = totSpend > 0 ? (totRev / totSpend) : 0;
   document.getElementById('kpi-spend').textContent    = fmt(totSpend);
-  document.getElementById('kpi-vouchers').textContent = (totVouch ?? 0).toLocaleString('en-GB');
+  document.getElementById('kpi-vouchers').textContent = (totVouch ?? 0).toLocaleString('en-US');
   document.getElementById('kpi-revenue').textContent  = fmt(totRev);
   document.getElementById('kpi-roas').textContent     = overallRoas.toFixed(1) + 'x';
 }
@@ -543,7 +543,7 @@ function renderChart() {
         tooltip: { callbacks: { label: ctx => ' ' + ctx.raw.toFixed(1) + 'x ROAS' } }
       },
       scales: {
-        x: { title: { display: true, text: 'ROAS (£ revenue per £1 spent)', font: { size: 11 } },
+        x: { title: { display: true, text: 'ROAS ($ revenue per $1 spent)', font: { size: 11 } },
              grid: { color: '#f0f0f5' } },
         y: { grid: { display: false } }
       },
@@ -582,7 +582,7 @@ function renderInsights() {
     html += `
     <div class="action-box">
       💡 <strong>Best margin return from paid:</strong> ${topPaid.channel_name} returns
-      ${topPaid.margin_on_spend.toFixed(2)}x in platform margin per £1 spent —
+      ${topPaid.margin_on_spend.toFixed(2)}x in platform margin per $1 spent —
       higher than its ROAS peers when margin rate is factored in.
     </div>`;
   }
@@ -601,8 +601,8 @@ function renderPlanner() {
     <div class="planner-header">
       <div>Channel</div>
       <div>Channel Type</div>
-      <div>Q1 Actual (£)</div>
-      <div>Q2 Proposed (£)</div>
+      <div>Q1 Actual ($)</div>
+      <div>Q2 Proposed ($)</div>
       <div>Projected Revenue</div>
     </div>
     ${channels.map(c => `
@@ -669,10 +669,10 @@ async function submitPlan() {
     channel_name:          c.channel_name,
     plan_period_start:     '2024-04-01',
     plan_period_end:       '2024-06-30',
-    proposed_budget_gbp:   (budgets[c.channel_id] || 0).toFixed(2),
-    q1_actual_spend_gbp:   c.total_spend_gbp.toFixed(2),
+    proposed_budget_usd:   (budgets[c.channel_id] || 0).toFixed(2),
+    q1_actual_spend_usd:   c.total_spend_gbp.toFixed(2),
     q1_roas:               c.roas.toFixed(2),
-    projected_revenue_gbp: ((budgets[c.channel_id] || 0) * c.roas).toFixed(2),
+    projected_revenue_usd: ((budgets[c.channel_id] || 0) * c.roas).toFixed(2),
     rationale:             rationale.replace(/\n/g, ' '),
     submitted_by:          name,
     submitted_at:          timestamp,

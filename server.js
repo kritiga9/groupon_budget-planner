@@ -199,13 +199,14 @@ app.post('/api/submit-plan', async (req, res) => {
       ),
     ].join('\n');
 
-    const form = new FormData();
-    form.append('incremental', '1');
-    form.append('data', new Blob([csv], { type: 'text/csv' }), 'plan.csv');
+    const { body: mpBody, contentType: mpType } = buildMultipart(
+      { incremental: '1' },
+      { field: 'data', filename: 'plan.csv', contentType: 'text/csv', content: csv }
+    );
 
     const importRes = await fetch(
       `${KBC_URL}/v2/storage/tables/${BUDGET_PLAN_TABLE}/import-async`,
-      { method: 'POST', headers: { 'X-StorageApi-Token': KBC_TOKEN }, body: form }
+      { method: 'POST', headers: { 'X-StorageApi-Token': KBC_TOKEN, 'Content-Type': mpType }, body: mpBody }
     );
 
     const importText = await importRes.text();

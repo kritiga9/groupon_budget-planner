@@ -506,7 +506,7 @@ function renderKPIs() {
   const totRev     = channels.reduce((s,c) => s + c.total_revenue_gbp, 0);
   const overallRoas = totSpend > 0 ? (totRev / totSpend) : 0;
   document.getElementById('kpi-spend').textContent    = fmt(totSpend);
-  document.getElementById('kpi-vouchers').textContent = totVouch.toLocaleString('en-GB');
+  document.getElementById('kpi-vouchers').textContent = (totVouch ?? 0).toLocaleString('en-GB');
   document.getElementById('kpi-revenue').textContent  = fmt(totRev);
   document.getElementById('kpi-roas').textContent     = overallRoas.toFixed(1) + 'x';
 }
@@ -519,7 +519,7 @@ function renderTable() {
       <td><strong>${c.channel_name}</strong><br>
           <span style="color:var(--text-mid);font-size:0.78rem;">${c.channel_type}</span></td>
       <td>${fmt(c.total_spend_gbp)}</td>
-      <td>${c.total_voucher_purchases.toLocaleString()}</td>
+      <td>${(c.total_voucher_purchases ?? 0).toLocaleString()}</td>
       <td><span class="roas-pill ${roasClass(c.roas)}">${fmtR(c.roas)}</span></td>
       <td>${c.margin_on_spend.toFixed(2)}x</td>
     </tr>

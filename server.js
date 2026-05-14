@@ -65,12 +65,16 @@ app.get('/api/performance', async (req, res) => {
       return res.status(r.status).json({ error: `Keboola API error: ${txt.slice(0, 300)}` });
     }
     const raw = await r.json();
-    // data-preview returns { columns: [...], rows: [[...], ...] }
-    const cols = raw.columns;
-    const rows = raw.rows.map(row => {
-      const obj = {};
-      cols.forEach((c, i) => { obj[c] = row[i]; });
-      return obj;
+    // data-preview returns { columns: [...], rows: [[...], ...] } or rows as objects
+    const cols = raw.columns || [];
+    const rawRows = raw.rows || [];
+    const rows = rawRows.map(row => {
+      if (Array.isArray(row)) {
+        const obj = {};
+        cols.forEach((c, i) => { obj[c] = row[i]; });
+        return obj;
+      }
+      return row; // already an object
     });
 
     // Aggregate to channel level (sum numeric cols, keep channel_name + channel_type)
@@ -92,22 +96,23 @@ app.get('/api/performance', async (req, res) => {
       NUM.forEach(f => { agg[key][f] += parseFloat(row[f] || 0); });
     }
 
+    const safe = (n) => isFinite(n) ? n : 0;
     const channels = Object.values(agg).map(c => ({
       ...c,
-      total_spend_gbp:            Math.round(c.total_spend_gbp),
-      total_revenue_gbp:          Math.round(c.total_revenue_gbp),
-      total_platform_margin_gbp:  Math.round(c.total_platform_margin_gbp),
-      total_impressions:          Math.round(c.total_impressions),
-      total_clicks:               Math.round(c.total_clicks),
-      total_voucher_purchases:    Math.round(c.total_voucher_purchases),
+      total_spend_gbp:            safe(Math.round(c.total_spend_gbp)),
+      total_revenue_gbp:          safe(Math.round(c.total_revenue_gbp)),
+      total_platform_margin_gbp:  safe(Math.round(c.total_platform_margin_gbp)),
+      total_impressions:          safe(Math.round(c.total_impressions)),
+      total_clicks:               safe(Math.round(c.total_clicks)),
+      total_voucher_purchases:    safe(Math.round(c.total_voucher_purchases)),
       roas: c.total_spend_gbp > 0
-        ? parseFloat((c.total_revenue_gbp / c.total_spend_gbp).toFixed(2))
+        ? safe(parseFloat((c.total_revenue_gbp / c.total_spend_gbp).toFixed(2)))
         : 0,
       cost_per_voucher: c.total_voucher_purchases > 0
-        ? parseFloat((c.total_spend_gbp / c.total_voucher_purchases).toFixed(2))
+        ? safe(parseFloat((c.total_spend_gbp / c.total_voucher_purchases).toFixed(2)))
         : 0,
       margin_on_spend: c.total_spend_gbp > 0
-        ? parseFloat((c.total_platform_margin_gbp / c.total_spend_gbp).toFixed(2))
+        ? safe(parseFloat((c.total_platform_margin_gbp / c.total_spend_gbp).toFixed(2)))
         : 0,
     }));
 

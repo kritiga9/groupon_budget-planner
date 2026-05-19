@@ -12,7 +12,7 @@ const KBC_URL   = (process.env.KBC_URL   || 'https://connection.europe-west3.gcp
 const KBC_TOKEN = process.env.KBC_TOKEN  || '';
 
 const PERFORMANCE_TABLE = 'out.c-marketing-analytics.weekly_channel_summary';
-const BUDGET_PLAN_TABLE = 'in.c-marketing-raw.budget_plan_usd';
+const BUDGET_PLAN_TABLE = 'out.c-marketing-raw.budget_plan_usd';
 
 app.use(express.json({ limit: '2mb' }));
 
